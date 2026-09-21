@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RealServer File Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#3b82f6', // Blue 500
+                        primaryHover: '#2563eb', // Blue 600
+                        success: '#10b981', // Emerald 500
+                        error: '#ef4444', // Red 500
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .drag-active {
+            border-color: #3b82f6 !important;
+            background-color: #eff6ff !important;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+        .fade-out {
+            animation: fadeOut 0.3s ease-in-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(5px); display: none; }
+        }
+        .hidden-animated {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex flex-col min-h-screen">
+
+    <header class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary to-blue-700 rounded-xl flex items-center justify-center shadow-md">
+                        <i class="fa-solid fa-server text-white text-lg"></i>
+                    </div>
+                    <span class="font-bold text-2xl tracking-tight text-slate-900">API Converter</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 w-full">
+        <div class="max-w-xl w-full">
+            
+            <div class="text-center mb-8 fade-in">
+                <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
+                    Convert Files Securely
+                </h1>
+                <p class="text-slate-600">
+                    Connects directly to your local backend API at <code class="bg-slate-200 px-1 py-0.5 rounded text-sm text-pink-600">localhost:3000</code>
+                </p>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden fade-in">
+                <div class="p-6 md:p-8">
+                    
+                    <!-- Settings -->
+                    <div class="mb-6">
+                        <label for="conversion-type" class="block text-sm font-semibold text-slate-700 mb-2">Select Conversion Type</label>
+                        <div class="relative">
+                            <select id="conversion-type" class="appearance-none w-full bg-slate-50 border border-slate-300 text-slate-700 py-3 px-4 pr-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors cursor-pointer font-medium">
+                                <option value="pdf-to-word">PDF to Word (.docx)</option>
+                                <option value="word-to-excel">Word to Excel (.xlsx)</option>
+                                <option value="ppt-to-pdf">PowerPoint to PDF (.pdf)</option>
+                                <option value="word-to-pdf">Word to PDF (.pdf)</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                                <i class="fa-solid fa-chevron-down text-sm"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload State -->
+                    <div id="ui-state-upload" class="block">
+                        <div id="drop-zone" class="border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors duration-200 py-12 px-6 cursor-pointer flex flex-col items-center justify-center relative group">
+                            <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                            
+                            <div class="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4 group-hover:-translate-y-1 transition-transform duration-300 border border-slate-100 text-primary">
+                                <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                            </div>
+                            
+                            <h3 class="text-xl font-bold text-slate-800 mb-1">Drag & Drop file here</h3>
+                            <p class="text-slate-500 mb-6 text-sm text-center">Supported formats: PDF, DOCX, PPTX based on selection</p>
+                            
+                            <button class="bg-white border border-slate-300 text-slate-700 font-medium py-2 px-6 rounded-lg shadow-sm group-hover:bg-slate-50 transition-colors pointer-events-none z-0">
+                                Browse Files
+                            </button>
+                        </div>
+
+                        <!-- Selected File Info (Hidden initially) -->
+                        <div id="selected-file-info" class="hidden mt-4 p-4 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between fade-in">
+                            <div class="flex items-center overflow-hidden">
+                                <i class="fa-solid fa-file-lines text-primary text-xl mr-3 flex-shrink-0"></i>
+                                <div class="truncate">
+                                    <p id="selected-filename" class="text-sm font-semibold text-slate-800 truncate"></p>
+                                    <p id="selected-filesize" class="text-xs text-slate-500"></p>
+                                </div>
+                            </div>
+                            <button id="btn-remove-file" class="ml-4 text-slate-400 hover:text-error transition-colors p-2">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <button id="btn-submit" class="w-full mt-6 bg-primary hover:bg-primaryHover disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-md shadow-blue-200 transition-all text-lg flex justify-center items-center" disabled>
+                            Start Conversion
+                        </button>
+                    </div>
+
+                    <!-- Progress State -->
+                    <div id="ui-state-progress" class="hidden flex-col items-center justify-center py-6 fade-in">
+                        <div class="w-full mb-6 text-center">
+                            <h3 id="progress-status-text" class="text-xl font-bold text-slate-800 mb-2">Uploading to server...</h3>
+                            <p id="progress-filename" class="text-sm text-slate-500 truncate max-w-sm mx-auto mb-6"></p>
+                            
+                            <!-- Real Progress Bar -->
+                            <div class="w-full bg-slate-200 rounded-full h-3 mb-2 overflow-hidden shadow-inner">
+                                <div id="progress-bar" class="bg-primary h-3 rounded-full transition-all duration-200 ease-out" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs font-semibold text-slate-500 mt-2">
+                                <span id="progress-bytes">0 B / 0 B</span>
+                                <span id="progress-percentage" class="text-primary">0%</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Server processing indicator -->
+                        <div id="server-processing-indicator" class="hidden flex items-center space-x-3 text-slate-600 bg-slate-50 py-3 px-6 rounded-lg border border-slate-200 fade-in">
+                            <i class="fa-solid fa-circle-notch animate-spin text-primary"></i>
+                            <span class="text-sm font-medium">Server is processing the document...</span>
+                        </div>
+                    </div>
+
+                    <!-- Error State -->
+                    <div id="ui-state-error" class="hidden flex-col items-center justify-center py-6 fade-in">
+                        <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 text-error">
+                            <i class="fa-solid fa-triangle-exclamation text-3xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2">Conversion Failed</h3>
+                        <p id="error-message" class="text-slate-600 text-center text-sm mb-6 max-w-sm">
+                            An error occurred while connecting to the server.
+                        </p>
+                        <button onclick="resetUI()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-6 rounded-lg transition-colors">
+                            Try Again
+                        </button>
+                    </div>
+
+                    <!-- Success State -->
+                    <div id="ui-state-success" class="hidden flex-col items-center justify-center py-6 fade-in">
+                        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 text-success border-4 border-white shadow-md">
+                            <i class="fa-solid fa-check text-3xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2">Conversion Complete!</h3>
+                        <p class="text-slate-600 text-center text-sm mb-6 max-w-sm">
+                            Your file was successfully converted and the download should have started automatically.
+                        </p>
+                        <button onclick="resetUI()" class="text-primary hover:text-primaryHover font-semibold transition-colors flex items-center">
+                            <i class="fa-solid fa-arrow-left mr-2"></i> Convert another file
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div class="mt-6 text-center text-sm text-slate-500 flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-circle text-xs text-slate-300" id="server-status-indicator"></i>
+                <span>Targeting <b>https://my-converter-backend.onrender.com/upload</b></span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // DOM Elements
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const conversionTypeSelect = document.getElementById('conversion-type');
+        
+        const uiStateUpload = document.getElementById('ui-state-upload');
+        const uiStateProgress = document.getElementById('ui-state-progress');
+        const uiStateError = document.getElementById('ui-state-error');
+        const uiStateSuccess = document.getElementById('ui-state-success');
+        
+        const selectedFileInfo = document.getElementById('selected-file-info');
+        const selectedFilename = document.getElementById('selected-filename');
+        const selectedFilesize = document.getElementById('selected-filesize');
+        const btnRemoveFile = document.getElementById('btn-remove-file');
+        const btnSubmit = document.getElementById('btn-submit');
+        
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const progressBytes = document.getElementById('progress-bytes');
+        const progressStatusText = document.getElementById('progress-status-text');
+        const progressFilename = document.getElementById('progress-filename');
+        const serverProcessingIndicator = document.getElementById('server-processing-indicator');
+        const errorMessage = document.getElementById('error-message');
+
+        // State
+        let currentFile = null;
+        const API_ENDPOINT = 'https://my-converter-backend.onrender.com/upload';
+
+        // Map types to expected output extensions for fallback naming
+        const extensionMap = {
+            'pdf-to-word': '.docx',
+            'word-to-excel': '.xlsx',
+            'ppt-to-pdf': '.pdf',
+            'word-to-pdf': '.pdf'
+        };
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-active'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-active'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            if(e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if(e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        btnRemoveFile.addEventListener('click', () => {
+            currentFile = null;
+            fileInput.value = '';
+            selectedFileInfo.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            btnSubmit.disabled = true;
+        });
+
+        function handleFile(file) {
+            currentFile = file;
+            
+            // Format file size
+            let sizeStr = '';
+            if (file.size < 1024) sizeStr = file.size + ' B';
+            else if (file.size < 1048576) sizeStr = (file.size / 1024).toFixed(1) + ' KB';
+            else sizeStr = (file.size / 1048576).toFixed(2) + ' MB';
+            
+            selectedFilename.textContent = file.name;
+            selectedFilesize.textContent = sizeStr;
+            
+            dropZone.classList.add('hidden');
+            selectedFileInfo.classList.remove('hidden');
+            btnSubmit.disabled = false;
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        btnSubmit.addEventListener('click', () => {
+            if (!currentFile) return;
+
+            const conversionType = conversionTypeSelect.value;
+            
+            // Switch UI to progress
+            uiStateUpload.classList.add('hidden-animated');
+            uiStateProgress.classList.remove('hidden');
+            uiStateProgress.classList.add('flex');
+            
+            progressFilename.textContent = currentFile.name;
+            progressBar.style.width = '0%';
+            progressPercentage.textContent = '0%';
+            progressBytes.textContent = `0 B / ${formatBytes(currentFile.size)}`;
+            progressStatusText.textContent = 'Uploading to server...';
+            serverProcessingIndicator.classList.add('hidden');
+
+            // Setup FormData
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('conversionType', conversionType);
+
+            // Setup XMLHttpRequest to track real progress
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', API_ENDPOINT, true);
+            xhr.responseType = 'blob'; // Expecting a file back
+
+            // Track Upload Progress
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    progressBar.style.width = percentComplete + '%';
+                    progressPercentage.textContent = percentComplete + '%';
+                    progressBytes.textContent = `${formatBytes(event.loaded)} / ${formatBytes(event.total)}`;
+                    
+                    if (percentComplete === 100) {
+                        progressStatusText.textContent = 'Upload complete.';
+                        serverProcessingIndicator.classList.remove('hidden');
+                    }
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    // Success! Process the downloaded blob
+                    const blob = xhr.response;
+                    
+                    // Try to get filename from Content-Disposition header
+                    let filename = '';
+                    const disposition = xhr.getResponseHeader('Content-Disposition');
+                    if (disposition && disposition.indexOf('attachment') !== -1) {
+                        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                        const matches = filenameRegex.exec(disposition);
+                        if (matches != null && matches[1]) { 
+                            filename = matches[1].replace(/['"]/g, '');
+                        }
+                    }
+
+                    // Fallback filename if header is missing
+                    if (!filename) {
+                        const originalName = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || currentFile.name;
+                        const ext = extensionMap[conversionType];
+                        filename = `${originalName}_converted${ext}`;
+                    }
+
+                    // Trigger actual download
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    // Cleanup
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    // Show Success UI
+                    uiStateProgress.classList.add('hidden-animated');
+                    uiStateProgress.classList.remove('flex');
+                    uiStateSuccess.classList.remove('hidden');
+                    uiStateSuccess.classList.add('flex');
+                } else {
+                    // Handle Server Error
+                    let errStr = `Server responded with status ${xhr.status}.`;
+                    
+                    // Attempt to read blob as text to show specific server error if they sent JSON
+                    if (xhr.response && xhr.response.type === 'application/json') {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            try {
+                                const json = JSON.parse(reader.result);
+                                if(json.error) errStr = json.error;
+                                else if(json.message) errStr = json.message;
+                            } catch(e) {}
+                            showError(errStr);
+                        };
+                        reader.readAsText(xhr.response);
+                    } else {
+                        showError(errStr);
+                    }
+                }
+            };
+
+            xhr.onerror = function() {
+                // Network Error (CORS, server down, etc.)
+                showError('Network error. Ensure your backend is running at localhost:3000 and CORS is enabled.');
+                document.getElementById('server-status-indicator').classList.replace('text-slate-300', 'text-error');
+            };
+
+            // Send the request
+            xhr.send(formData);
+        });
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            uiStateProgress.classList.add('hidden-animated');
+            uiStateProgress.classList.remove('flex');
+            uiStateError.classList.remove('hidden');
+            uiStateError.classList.add('flex');
+        }
+
+        function resetUI() {
+            currentFile = null;
+            fileInput.value = '';
+            
+            uiStateError.classList.add('hidden-animated');
+            uiStateError.classList.remove('flex');
+            uiStateSuccess.classList.add('hidden-animated');
+            uiStateSuccess.classList.remove('flex');
+            
+            selectedFileInfo.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            
+            uiStateUpload.classList.remove('hidden-animated');
+            btnSubmit.disabled = true;
+            document.getElementById('server-status-indicator').classList.replace('text-error', 'text-slate-300');
+        }
+
+    </script>
+</body>
+</html>
