@@ -3,7 +3,7 @@ const multer = require('multer');
 const cors = require('cors');
 const JSZip = require('jszip');
 const { PDFParse } = require('pdf-parse');
-const { Document, Packer, Paragraph, TextRun } = require('docx');
+const { Document, Packer, Paragraph, TextRun, ImageRun } = require('docx');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -45,17 +45,37 @@ function buildTargetFilename(originalName, conversionType) {
 
 async function buildDocxBuffer(fileBuffer) {
   const parser = new PDFParse({ data: fileBuffer });
+  const { pdf } = await import('pdf-to-img');
 
   try {
     const parsedPdf = await parser.getText();
-    if (!parsedPdf.text.trim()) {
-      throw new Error('The PDF contains no selectable text. Scanned PDFs need OCR before conversion.');
+    const pageDocument = await pdf(`data:application/pdf;base64,${fileBuffer.toString('base64')}`, { scale: 1.5 });
+    const children = [];
+    let pageNumber = 0;
+
+    for await (const image of pageDocument) {
+      pageNumber += 1;
+      children.push(new Paragraph({
+        children: [new ImageRun({
+          type: 'png',
+          data: image,
+          transformation: { width: 612, height: 792 },
+        })],
+        pageBreakBefore: pageNumber > 1,
+      }));
     }
 
-    const paragraphs = parsedPdf.text.split(/\r?\n/).map((line) => new Paragraph({
-      children: [new TextRun(line || ' ')],
-    }));
-    const document = new Document({ sections: [{ children: paragraphs }] });
+    if (parsedPdf.text.trim()) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: 'Extracted text', bold: true })],
+        pageBreakBefore: true,
+      }));
+      children.push(...parsedPdf.text.split(/\r?\n/).map((line) => new Paragraph({
+        children: [new TextRun(line || ' ')],
+      })));
+    }
+
+    const document = new Document({ sections: [{ children }] });
     return Packer.toBuffer(document);
   } finally {
     await parser.destroy();
