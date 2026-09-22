@@ -115,6 +115,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Converter backend is running.' });
 });
 
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Converter backend is running.', health: '/health' });
+});
+
 app.post('/upload', upload.single('file'), async (req, res) => {
   await convertUploadedFile(req, res);
 });
