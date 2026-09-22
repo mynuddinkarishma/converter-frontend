@@ -73,7 +73,6 @@
                     Convert Files Securely
                 </h1>
                 <p class="text-slate-600">
-                    Connects directly to your local backend API at <code class="bg-slate-200 px-1 py-0.5 rounded text-sm text-pink-600">localhost:3000</code>
                 </p>
             </div>
 
@@ -86,6 +85,8 @@
                         <div class="relative">
                             <select id="conversion-type" class="appearance-none w-full bg-slate-50 border border-slate-300 text-slate-700 py-3 px-4 pr-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors cursor-pointer font-medium">
                                 <option value="pdf-to-word">PDF to Word (.docx)</option>
+                                <option value="image-to-word">Scanned Image to Editable Word (.docx)</option>
+                                <option value="image-to-pdf">Image to PDF (.pdf)</option>
                                 <option value="word-to-excel">Word to Excel (.xlsx)</option>
                                 <option value="ppt-to-pdf">PowerPoint to PDF (.pdf)</option>
                                 <option value="word-to-pdf">Word to PDF (.pdf)</option>
@@ -106,7 +107,7 @@
                             </div>
                             
                             <h3 class="text-xl font-bold text-slate-800 mb-1">Drag & Drop file here</h3>
-                            <p class="text-slate-500 mb-6 text-sm text-center">Supported formats: PDF, DOCX, PPTX based on selection</p>
+                            <p class="text-slate-500 mb-6 text-sm text-center">Supported formats: PDF, DOCX, PPTX, JPG, PNG based on selection</p>
                             
                             <button class="bg-white border border-slate-300 text-slate-700 font-medium py-2 px-6 rounded-lg shadow-sm group-hover:bg-slate-50 transition-colors pointer-events-none z-0">
                                 Browse Files
@@ -220,11 +221,13 @@
 
         // State
         let currentFile = null;
-        const API_ENDPOINT = 'https://my-converter-backend.onrender.com/upload';
+        const API_ENDPOINT = 'https://pdf-backend-server.onrender.com/upload';
 
         // Map types to expected output extensions for fallback naming
         const extensionMap = {
             'pdf-to-word': '.docx',
+            'image-to-word': '.docx',
+            'image-to-pdf': '.pdf',
             'word-to-excel': '.xlsx',
             'ppt-to-pdf': '.pdf',
             'word-to-pdf': '.pdf'
