@@ -2,6 +2,9 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const JSZip = require('jszip');
+const PDFDocument = require('pdfkit');
+const mammoth = require('mammoth');
+const { createWorker } = require('tesseract.js');
 const { PDFParse } = require('pdf-parse');
 const { Document, Packer, Paragraph, TextRun, ImageRun } = require('docx');
 
@@ -11,6 +14,8 @@ const PORT = process.env.PORT || 3000;
 
 const extensionMap = {
   'pdf-to-word': '.docx',
+  'image-to-word': '.docx',
+  'image-to-pdf': '.pdf',
   'word-to-excel': '.xlsx',
   'ppt-to-pdf': '.pdf',
   'word-to-pdf': '.pdf',
@@ -18,6 +23,8 @@ const extensionMap = {
 
 const mimeTypeMap = {
   'pdf-to-word': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image-to-word': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image-to-pdf': 'application/pdf',
   'word-to-excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'ppt-to-pdf': 'application/pdf',
   'word-to-pdf': 'application/pdf',
@@ -82,6 +89,41 @@ async function buildDocxBuffer(fileBuffer) {
   }
 }
 
+async function extractImageText(fileBuffer) {
+  const worker = await createWorker('eng');
+  try {
+    const result = await worker.recognize(fileBuffer);
+    return result.data.text.trim();
+  } finally {
+    await worker.terminate();
+  }
+}
+
+async function buildImageDocxBuffer(fileBuffer) {
+  const text = await extractImageText(fileBuffer);
+  if (!text) {
+    throw new Error('No readable text was found in the image. Try a clearer scan.');
+  }
+
+  const paragraphs = text.split(/\r?\n/).map((line) => new Paragraph({
+    children: [new TextRun(line || ' ')],
+  }));
+  return Packer.toBuffer(new Document({ sections: [{ children: paragraphs }] }));
+}
+
+function buildImagePdfBuffer(fileBuffer) {
+  return new Promise((resolve, reject) => {
+    const document = new PDFDocument({ autoFirstPage: false });
+    const chunks = [];
+    document.on('data', (chunk) => chunks.push(chunk));
+    document.on('end', () => resolve(Buffer.concat(chunks)));
+    document.on('error', reject);
+    document.addPage({ size: 'A4', margin: 24 });
+    document.image(fileBuffer, { fit: [547, 794], align: 'center', valign: 'center' });
+    document.end();
+  });
+}
+
 async function buildXlsxBuffer(fileName, conversionType) {
   const zip = new JSZip();
   const text = `Converted from ${fileName} using ${conversionType}.`;
@@ -92,6 +134,11 @@ async function buildXlsxBuffer(fileName, conversionType) {
   zip.file('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
   zip.file('xl/worksheets/sheet1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>${escapeXml(text)}</t></is></c></row></sheetData></worksheet>`);
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+async function extractWordText(fileBuffer) {
+  const result = await mammoth.extractRawText({ buffer: fileBuffer });
+  return result.value.trim() || `Converted from ${fileBuffer.length} bytes.`;
 }
 
 function buildPdfBuffer(text) {
@@ -110,8 +157,13 @@ async function convertUploadedFile(req, res) {
 
   if (conversionType === 'pdf-to-word') {
     outputBuffer = await buildDocxBuffer(req.file.buffer);
+  } else if (conversionType === 'image-to-word') {
+    outputBuffer = await buildImageDocxBuffer(req.file.buffer);
+  } else if (conversionType === 'image-to-pdf') {
+    outputBuffer = await buildImagePdfBuffer(req.file.buffer);
   } else if (conversionType === 'word-to-excel') {
-    outputBuffer = await buildXlsxBuffer(originalName, conversionType);
+    const text = await extractWordText(req.file.buffer);
+    outputBuffer = await buildXlsxBuffer(text, conversionType);
   } else if (conversionType === 'ppt-to-pdf' || conversionType === 'word-to-pdf') {
     outputBuffer = buildPdfBuffer(`Converted from ${originalName} using ${conversionType}.`);
   } else {
